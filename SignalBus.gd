@@ -5,12 +5,15 @@ signal signal_registered
 signal listener_registered
 
 var signals : Dictionary = {}
-var listeners : Dictionary = {}
 var monitored : Array[Node] = []
 var queued_remove : Array = []
 
 
 @onready var testsubject = get_child(0)
+
+func get_registerd_signal_list() -> Array[String]:
+	var returnval : Array[String] = signals.keys()
+	return returnval
 
 ## This function is used to register a signal to be connected to any valid listeners
 func register_node_signal(passed_signal : Signal) -> void:
@@ -20,24 +23,29 @@ func register_node_signal(passed_signal : Signal) -> void:
 		#return
 	if signals.find_key(signal_name):
 		signals[signal_name].sources.append(source)
+		for signal_listener in signals[signal_name].listeners:
+			passed_signal.connect(signal_listener)
 	else:
 		signals[signal_name] = {
 			"sources" : [source],
 			"listeners" :  [], 
 		}
-	_check_for_listeners(signal_name)
+	#_check_for_listeners(signal_name)
 	_register_node_cleanup(source, signal_registered)
 
-func _check_for_listeners(signal_name : String) -> Array:
-	return listeners[signal_name].sources
+#func _check_for_listeners(signal_name : String) -> Array:
+	#return listeners[signal_name].sources
 
 ## This function is used to register a listener to be connected to any valid signals.
 func register_node_listener(connect_to : Callable, signal_name : String) -> void:
-	if listeners.find_key(signal_name):
-		listeners[signal_name].sources.append(connect_to)
+	if signals.find_key(signal_name):
+		signals[signal_name].listeners.append(connect_to)
+		for signal_source in signals[signal_name].sources:
+			Signal(signal_source.get_object(), signal_name).connect(connect_to)
 	else:
-		listeners[signal_name] = {
-			"sources" : [connect_to],
+		signals[signal_name] = {
+			"sources" : [],
+			"listeners" : [connect_to],
 		}
 	_register_node_cleanup(connect_to.get_object(), listener_registered)
 
