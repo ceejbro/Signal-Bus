@@ -19,3 +19,31 @@ Mode = 0
 script = ExtResource("3_7m8mo")
 property = "test_signal"
 method = "test"
+
+[node name="GraphEdit" type="GraphEdit" parent="."]
+offset_right = 822.0
+offset_bottom = 529.0
+scroll_offset = Vector2(-40, -40)
+
+[node name="GraphNode" type="GraphNode" parent="GraphEdit"]
+layout_mode = 0
+offset_left = 97.0
+offset_top = 130.0
+offset_right = 241.0
+offset_bottom = 307.0
+mouse_filter = 1
+position_offset = Vector2(57, 90)
+title = "Signal"
+slot/0/left_enabled = false
+slot/0/left_type = 0
+slot/0/left_color = Color(1, 1, 1, 1)
+slot/0/left_icon = null
+slot/0/right_enabled = true
+slot/0/right_type = 0
+slot/0/right_color = Color(1, 1, 1, 1)
+slot/0/right_icon = null
+slot/0/draw_stylebox = true
+
+[node name="Label" type="Label" parent="GraphEdit/GraphNode"]
+layout_mode = 2
+text = "Source Object"
