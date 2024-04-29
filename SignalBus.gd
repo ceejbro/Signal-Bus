@@ -1,11 +1,10 @@
 extends Node
-class_name SignalBus
 
 signal signal_registered
 signal listener_registered
 
 @export var debug: bool = true
-var _signaldb = SignalDB.new().data.signaldb
+var _signaldb
 var _monitored: Array[Node] = []
 var _queued_remove: Array = []
 
@@ -16,7 +15,7 @@ func _ready() -> void:
 	print("SignalBus debug mode: ", debug)
 	if debug:
 		print("Debug messages from SignalBus will be printed to Output Dock...")
-
+	_signaldb = SignalDB.new()
 
 func get_registered_signal_list() -> Array[String]:
 	var returnval: Array[String] = _signaldb.keys()

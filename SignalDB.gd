@@ -1,7 +1,7 @@
 extends Resource
 class_name SignalDB
 
-var debug = SignalBus.debug
+var debug
 var data: Dictionary = {
 	"signaldb": {},
 	"sourcedb": {},
@@ -24,7 +24,7 @@ var _sourcetemplate = {
 
 
 func _init() -> void:
-	pass
+	debug = SignalBus.debug
 
 func _get_unique_elements(passed_array: Array, null_allowed: bool = true) -> Array:
 	var temparray = passed_array.duplicate()
