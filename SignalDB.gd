@@ -1,31 +1,51 @@
 extends Resource
 class_name SignalDB
 
-var debug
+var _debug
+var _group_mode
+var _unique_group_label
+# Main data dictionary containing the database for signals -> sources and the reverse sources -> signals.
+# Keys for the signaldb are by Signal name as string. Values take the form of _signaltemplate.
+# Keys for the sourcedb are by Object IDs as int. Values take the form of _sourcetemplate.
 var data: Dictionary = {
 	"signaldb": {},
 	"sourcedb": {},
 }
+
+# Template dictionary format for signal entries in data.signaldb. Each key is an array of ints corresponding to
+# the Object IDs of the source or listening Object.
 var _signaltemplate = {
-	"strongsourceids": [],
-	"sources": [],
-	"refsources": [],
-	"weakrefsources": [],
-	"stronglistenerids": [],
-	"listeners": [],
-	"reflisteners": [],
-	"weakreflisteners": [],
+	"sourceids": [],
+	"listenerids": [],
 }
+
+# Template dictionary format for source entries in data.sourcedb. The first key is where a strong reference to a
+# RefCounted or its descendants is kept if the appropriate flags are in the registering function call. If the Object
+# is not to retain a strong reference or is not a descendant of RefCounted, this value should be null.
+# The remaining keys are an array of strings corresponding to the Signal names where this Object is the source or 
+# listener.
 var _sourcetemplate = {
-	"always_weak": true,
+	"resource_strong_reference": null,
 	"as_source": [],
 	"as_listener": [],
 }
 
+func _init(debug_mode: bool = true, group_mode: bool = true, group_label: String = "SignalManager") -> void:
+	_debug = debug_mode
+	_group_mode = group_mode
+	_unique_group_label = group_label
 
-func _init() -> void:
-	debug = SignalBus.debug
 
+# Debug printing function. Toggled from the main SignalBus scene export variable 'Debug.'
+func _printdbg(message: String, error: bool = false) -> void:
+	if _debug:
+		if error:
+			printerr(message)
+		else:
+			print(message)
+
+# Internal function for finding unique elements in an array even if the array includes null as an entry.
+# Function does not alter the original array but returns a copy of the unique values as an array.
 func _get_unique_elements(passed_array: Array, null_allowed: bool = true) -> Array:
 	var temparray = passed_array.duplicate()
 	temparray.sort()
@@ -55,44 +75,32 @@ func _get_unique_elements(passed_array: Array, null_allowed: bool = true) -> Arr
 			temparray.append(null)
 	return temparray
 	
-
-func add_signal_to_db(passed_signal, weak_reference) -> bool:
+# External function for setting up the signal's DB entry and validating
+func add_signal_to_db(passed_signal, weak_reference, override) -> bool:
 	var signal_name: String = passed_signal.get_name()
 	if signal_name == "":
-		if debug:
+		if _debug:
 			printerr("Unable to use SignalBus for anonymous signals...")
 		return false
 	var source = passed_signal.get_object()
 	var sourceid = passed_signal.get_object_id()
-	var where: String = "sources"
-	if not data.signaldb.find_key(signal_name):
-		data.signaldb[signal_name] = _signaltemplate.duplicate()
-	var sigdb = data.signaldb[signal_name]
-
-	if source is RefCounted:
-		where = "ref" + where
-		if weak_reference:
-			source = sourceid
-			where = "weak" + where
+	if _group_mode:
+		#group stuff
+		return true
 	else:
-		weak_reference = false	
-	
-	if sigdb[where].has(source):
-		if debug:
-			printerr(
-				"SignalDB already contains an entry for ",
-				source,
-				" in ",
-				signal_name,
-				"'s sources..."
-			)
-		return false
-	if not weak_reference and not sigdb.strongsourceids.has(sourceid):
-		sigdb.strongsourceids.append(sourceid)
-	sigdb[where].append(source)
-	_add_source_to_sourcedb(sourceid, signal_name, weak_reference)
-	return true
+		if not data.signaldb.find_key(signal_name):
+			data.signaldb[signal_name] = _signaltemplate.duplicate()
+		var sigdb = data.signaldb[signal_name].sourceids
 
+		if not source is RefCounted: 
+			weak_reference = false
+		
+		if sigdb.has(source):
+			_printdbg("SignalDB already contains an entry for " + source + " in " + signal_name + "'s sources...", true)
+			return false
+		sigdb.append(sourceid)
+		_add_source_to_sourcedb(source, sourceid, signal_name, weak_reference, override)
+	return true
 
 func add_listener_to_db(
 	connect_to, signal_name, flags, weak_reference, debug: bool = false
@@ -100,14 +108,20 @@ func add_listener_to_db(
 	return true
 
 
-func _add_source_to_sourcedb(sourceid, signal_name, weak_reference) -> void:
+func _add_source_to_sourcedb(source, sourceid, signal_name, weak_reference, override) -> void:
+	var just_initialized = false
 	if not data.sourcedb.find_key(sourceid):
 		data.sourcedb[sourceid] = _sourcetemplate.duplicate()
+		just_initialized = true
 	data.sourcedb[sourceid].as_source.append(signal_name)
-	if data.sourcedb[sourceid].always_weak:
-		if not weak_reference:
-			data.sourcedb[sourceid].always_weak = false
-
+	if data.sourcedb[sourceid].resource_strong_reference:
+		if weak_reference and override:
+			data.sourcedb[sourceid].resource_strong_reference = null
+	else:
+		if not weak_reference and just_initialized:
+			data.sourcedb[sourceid].resource_strong_reference = source
+		if not weak_reference and override:
+			data.sourcedb[sourceid].resource_strong_reference = source
 
 func _add_listener_to_sourcedb(sourceid, signal_name, weak_reference) -> void:
 	if not data.sourcedb.find_key(sourceid):
@@ -150,8 +164,7 @@ func _purge_sourceid(sourceid) -> void:
 
 
 func _validate_references(signal_name: String, sources: bool, listeners: bool):
-	if debug:
-		print("Validating Listeners...")
+	_printdbg("Validating Listeners...")
 	if listeners:
 		var invalid_ref = data.signaldb[signal_name].weakreflisteners.filter(
 			func(ref): return not is_instance_id_valid(ref)
@@ -162,8 +175,7 @@ func _validate_references(signal_name: String, sources: bool, listeners: bool):
 		var invalid_id = data.signaldb[signal_name].stronglistenerids.filter(
 			func(ref): return is_instance_id_valid(ref)
 		)
-	if debug:
-		print("Validating Sources...")
+	_printdbg("Validating Sources...")
 	if sources:
 		var invalid_ref = data.signaldb[signal_name].weakrefsources.filter(
 			func(ref): return not is_instance_id_valid(ref)
