@@ -18,6 +18,10 @@ config/icon="res://icon.svg"
 
 SignalBus="*res://SignalBus.tscn"
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/zylann.editor_debugger/plugin.cfg")
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
